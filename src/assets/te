@@ -1,0 +1,252 @@
+<template>
+  <div class="excel_upload">
+    <input type="file" ref="upFile" @change="importF()" />
+
+    <button @click="deal()">添加到列表</button>
+  </div>
+</template>F
+
+<script>
+import XLSX from 'xlsx'
+export default {
+  name: 'excelUpload',
+  data () {
+    return {
+      fileList: [
+        {
+          fileName: '',
+          type: [],
+          content: []
+        },
+        {
+          fileName: '',
+          type: [],
+          content: []
+        }
+      ],
+      fileNum: -1,
+      wb: '', // 读取完成的数据
+      content: '', // 文件内容
+      // name: '', // 文件名
+      rABS: true // 是否将文件读取为二进制字符串
+    }
+  },
+  methods: {
+    /// ///////////////////====================/////////////
+    importF () { // 导入
+      // const obj = event.target.files[0]
+      this.fileNum++
+      const obj = this.$refs.upFile
+      console.log('点击')
+      console.log(obj)
+      if (!obj.files) {
+        console.log('不是file类型')
+        return
+      }
+      const f = obj.files[0]
+      console.log('文件数量' + this.fileNum)
+      // 文件名
+      console.log('文件名')
+      console.log(f.name) /// //////////
+      this.fileList[this.fileNum].fileName = f.name
+      const reader = new FileReader()
+      const _this = this
+      reader.onload = function (e) {
+        const data = e.target.result
+        // console.log('读取到的内容: ')
+        // console.log(data)
+        if (_this.rABS) {
+          this.wb = XLSX.read(btoa(_this.fixData(data)), { // 手动转化
+            type: 'base64'
+          })
+        } else {
+          this.wb = XLSX.read(data, {
+            type: 'binary'
+          })
+        }
+        // wb.SheetNames[0]是获取Sheets中第一个Sheet的名字
+        // wb.Sheets[Sheet名]获取第一个Sheet的数据
+        // console.log('文件内容转json后: ')
+        _this.content = JSON.stringify(XLSX.utils.sheet_to_json(this.wb.Sheets[this.wb.SheetNames[1]])).toString()
+        // console.log(_this.content)
+        // const obj = { }
+        let fields = { }
+        let tableName = ' '
+        let chineseTableName = ' '
+        let tableNumber = ''
+        // 根据项目需求得到自己想要的json
+        const arr = XLSX.utils.sheet_to_json(this.wb.Sheets[this.wb.SheetNames[1]])
+        arr.forEach((item, index) => {
+          if (item['表序号']) {
+            if (tableName && chineseTableName && Object.keys(fields).length && tableNumber) {
+              obj[tableName] = {
+                tableName: chineseTableName,
+                fields
+              }
+            }
+            fields = {}
+            tableName = ''
+            chineseTableName = ''
+            tableName = item['表名及备注']
+            tableNumber = '表' + item['表序号'] + ':'
+          } else { // 同一个表
+            if (item['表名及备注']) {
+              chineseTableName = tableNumber + item['表名及备注']
+            }
+          }
+          fields[item['字段名']] = item['字段注释']
+          if (index === arr.length - 1) {
+            obj[tableName] = {
+              tableName: chineseTableName,
+              fields
+            }
+          }
+        })
+        // console.log('aaaaaaaaaaaaaaaa',JSON.stringify(obj));
+        // document.getElementById("result").value = JSON.stringify(obj);
+      }
+      if (this.rABS) {
+        reader.readAsArrayBuffer(f)
+      } else {
+        reader.readAsBinaryString(f)
+      }
+    },
+    fixData (data) { // 文件流转BinaryString
+      var o = ''
+      var l = 0
+      var w = 10240
+      for (; l < data.byteLength / w; ++l) { o += String.fromCharCode.apply(null, new Uint8Array(data.slice(l * w, l * w + w))) }
+      o += String.fromCharCode.apply(null, new Uint8Array(data.slice(l * w)))
+      return o
+    },
+    // var rABS = true; // true: readAsBinaryString ; false: readAsArrayBuffer
+    /// /////////////////////=============/////////////////
+    // input_dom_element.addEventListener('change', handleFile, false);
+    deal () {
+      var obj2 = JSON.parse(this.content) // 将json串转为json对象
+      // console.log('json:')
+      // console.log(obj2)
+      // console.log(obj2.length) // json对象的长度
+      var keyNum = 0
+      for (var key in obj2[0]) {
+        // console.log('key：' + key) // json对象的key
+        if (key) {
+          keyNum++
+        }
+        // console.log('keyNum:' + keyNum)
+      }
+      // console.log('每个对象的键的个数' + keyNum)
+      /* 思路：第一行有几个数据，就建一个这么长的数组，每一个数组存储excel表中的一列数据 */
+      const keyValue = [] // 存放excel第一行的数据
+      var j = 0
+      for (const key in obj2[0]) {
+        // console.log('键：' + key); //json对象的key
+        keyValue[j] = key
+        // console.log(' keyValue ' + key + ': ' + keyValue[j])
+        j++
+      }
+      console.log(keyValue.length)
+      /* for (var i = 0; i < keyNum; i++) {
+              console.log("keyValue-------------: " + keyValue[i])
+          } */
+      // var dataValue = new Array() // 先声明一维   dataValue[][]存储的是每列的数据
+      var dataValue = []
+      for (var k = 0; k < keyNum; k++) { // 一维长度为i,i为变量，可以根据实际情况改变
+        dataValue[k] = [] // 声明二维，每一个一维数组里面的一个元素都是一个数组
+      }
+
+      // 将excel表中同一列数据保存到一个数组中（有几列就有几个数组，这里excel最多十列，多出的不会存入数组），这里是通过当键名相同时将值放到相同的数组
+      for (let i = 0; i < obj2.length; i++) {
+        for (const key in obj2[i]) {
+          if (keyValue[0] === key) {
+            dataValue[0][i] = obj2[i][key]
+            // this.fileList.content0[i] = dataValue[0][i]
+          } else if (key === keyValue[1]) {
+            dataValue[1][i] = obj2[i][key]
+            // this.fileList.content1[i] = dataValue[1][i]
+          } else if (key === keyValue[2]) {
+            dataValue[2][i] = obj2[i][key]
+            // this.fileList.content2[i] = dataValue[2][i]
+          } else if (key === keyValue[3]) {
+            dataValue[3][i] = obj2[i][key]
+            // this.fileList.content3[i] = dataValue[3][i]
+          } else if (key === keyValue[4]) {
+            dataValue[4][i] = obj2[i][key]
+            // this.fileList.content4[i] = dataValue[4][i]
+          } else if (key === keyValue[5]) {
+            dataValue[5][i] = obj2[i][key]
+            // this.fileList.content5[i] = dataValue[5][i]
+          } else if (key === keyValue[6]) {
+            dataValue[6][i] = obj2[i][key]
+            // this.fileList.content6[i] = dataValue[6][i]
+          } else if (key === keyValue[7]) {
+            dataValue[7][i] = obj2[i][key]
+            // this.fileList.content7[i] = dataValue[7][i]
+          } else if (key === keyValue[8]) {
+            dataValue[8][i] = obj2[i][key]
+            // this.fileList.content8[i] = dataValue[8][i]
+          } else if (key === keyValue[9]) {
+            dataValue[9][i] = obj2[i][key]
+            // this.fileList.content9[i] = dataValue[9][i]
+          }
+        }
+      }
+
+      console.log('===========================')
+      for (let i = 0; i < keyValue.length; i++) {
+        this.fileList[this.fileNum].type[i] = keyValue[i]
+        this.fileList[this.fileNum].content[i] = dataValue[i]
+      }
+
+      console.log(this.fileList)
+      /* console.log(this.fileList) */
+      /* console.log('=============' + keyValue[0])
+      console.log(dataValue[0])
+
+      console.log('=============' + keyValue[1])
+      console.log(dataValue[1])
+
+      console.log('=============' + keyValue[2])
+      console.log(dataValue[2])
+
+      console.log('=============' + keyValue[3])
+      console.log(dataValue[3])
+
+      console.log('=============' + keyValue[4])
+      console.log(dataValue[4])
+
+      console.log('=============' + keyValue[5])
+      console.log(dataValue[5])
+
+      console.log('=============' + keyValue[6])
+      console.log(dataValue[6])
+
+      console.log('=============' + keyValue[7])
+      console.log(dataValue[7])
+
+      console.log('=============' + keyValue[8])
+      console.log(dataValue[8])
+
+      console.log('=============' + keyValue[9])
+      console.log(dataValue[9]) */
+    }
+
+  },
+  components: {
+  }
+}
+</script>
+
+<style scoped>
+
+  .img_excel {
+    margin: 24px;
+  }
+
+</style>
+
+<!--数据集上传excel,txt文件数据上传
+
+store excel数据：
+excelName String: excel文件名
+excelData[]: excel数据--[{sheet[],sheetName},{sheet[],sheetName},...] -->

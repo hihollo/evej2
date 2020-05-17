@@ -30,17 +30,17 @@ npm i element-ui -S
 npm install vue
 ```
 
-### Working with excel files
+### Install it for working with excel files
 ```
 npm install xlsx
 ```
 
-### Make plane graphics
+### Install it for make plane graphics
 ```
 npm install echarts -S
 ```
 
-### Make 3d graphics
+### Install it for make 3d graphics
 ```
 npm install echarts-gl
 ```

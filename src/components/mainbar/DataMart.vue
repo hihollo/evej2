@@ -5,7 +5,7 @@
           <input type="file" ref="upFile" style="font-size: 20px" @change="importF()" />
         </div>
         <div clsaa="but2">
-          <button @click="deal(), showTable()" style="height: 34px"  >添加到列表</button>
+          <button @click=" showTable()" style="height: 34px"  >添加到列表</button>
         </div>
 
       </div>
@@ -25,11 +25,11 @@
               </template>
             </el-table-column>
             <el-table-column
-              label="姓名"
+              label="名称"
               width="180">
               <template slot-scope="scope">
                 <el-popover trigger="hover" placement="top">
-                  <p>姓名: {{ scope.row.fileName }}</p>
+                  <p>名称: {{ scope.row.fileName }}</p>
                   <div slot="reference" class="name-wrapper">
                     <el-tag size="medium">{{ scope.row.fileName }}</el-tag>
                   </div>
@@ -66,7 +66,8 @@ export default {
   data () {
     return {
       update: '', //  table刷新要的key
-      fileInfo: [], // 将上传的所有文件都存在这个数组中（存了一个或多个singleFile对象）
+      fileInfo: [], // 将上传的所有excel文件都存在这个数组中（存了一个或多个singleFile对象）
+      txtList: [], // 将所有的txt文件存在这个数组
       fileName: '', // imporF中的文件名传到deal使用
       fileNum: 0,
       wb: '', // 读取完成的数据
@@ -81,9 +82,21 @@ export default {
     GenNonDuplicateID () { // 产生一个随机的不重复的id
       return Math.random().toString(36).substr(3)
     },
+    getEnd (name) { // 获取文件结尾名
+      let index
+      for (let i = 0; i < name.length; i++) {
+        if (name[i] === '.') {
+          index = i
+        }
+      }
+      const endWith = name.substring(index)
+      return endWith
+    },
     showTable () { // 将store中fileInfo的数据赋值给this.fileInfo,table里才显示文件
       this.fileInfo = this.$store.state.fileInfo
       this.update = this.GenNonDuplicateID()
+      console.log('显示时获得的所有文件')
+      console.log(this.fileInfo)
       // console.log('showTable得到的数据')
       // console.log(this.fileInfo)
     },
@@ -131,62 +144,101 @@ export default {
       // 文件名
       // console.log('文件名')
       // console.log(f.name) /// //////////
-      singleFile.fileName = f.name
-      this.fileName = singleFile.fileName
-      const reader = new FileReader()
-      const _this = this
-      reader.onload = function (e) {
-        const data = e.target.result
-        // console.log('读取到的内容: ')
-        // console.log(data)
-        if (_this.rABS) {
-          this.wb = XLSX.read(btoa(_this.fixData(data)), { // 手动转化
-            type: 'base64'
-          })
-        } else {
-          this.wb = XLSX.read(data, {
-            type: 'binary'
-          })
-        }
-        _this.content = JSON.stringify(XLSX.utils.sheet_to_json(this.wb.Sheets[this.wb.SheetNames[1]])).toString()
-        let fields = { }
-        let tableName = ' '
-        let chineseTableName = ' '
-        let tableNumber = ''
-        // 根据项目需求得到自己想要的json
-        const arr = XLSX.utils.sheet_to_json(this.wb.Sheets[this.wb.SheetNames[1]])
-        arr.forEach((item, index) => {
-          if (item['表序号']) {
-            if (tableName && chineseTableName && Object.keys(fields).length && tableNumber) {
+      if (this.getEnd(f.name) === '.xlsx') {
+        singleFile.fileName = f.name /// /////////////////////===========================
+        this.fileName = singleFile.fileName
+        const reader = new FileReader()
+        const _this = this
+        reader.onload = function (e) {
+          const data = e.target.result
+          // console.log('读取到的内容: ')
+          // console.log(data)
+          if (_this.rABS) {
+            this.wb = XLSX.read(btoa(_this.fixData(data)), { // 手动转化
+              type: 'base64'
+            })
+          } else {
+            this.wb = XLSX.read(data, {
+              type: 'binary'
+            })
+          }
+          var content = JSON.stringify(XLSX.utils.sheet_to_json(this.wb.Sheets[this.wb.SheetNames[1]])).toString()
+          _this.receiveXLSX(content)
+          let fields = { }
+          let tableName = ' '
+          let chineseTableName = ' '
+          let tableNumber = ''
+          // 根据项目需求得到自己想要的json
+          const arr = XLSX.utils.sheet_to_json(this.wb.Sheets[this.wb.SheetNames[1]])
+          arr.forEach((item, index) => {
+            if (item['表序号']) {
+              if (tableName && chineseTableName && Object.keys(fields).length && tableNumber) {
+                obj[tableName] = {
+                  tableName: chineseTableName,
+                  fields
+                }
+              }
+              fields = {}
+              tableName = ''
+              chineseTableName = ''
+              tableName = item['表名及备注']
+              tableNumber = '表' + item['表序号'] + ':'
+            } else { // 同一个表
+              if (item['表名及备注']) {
+                chineseTableName = tableNumber + item['表名及备注']
+              }
+            }
+            fields[item['字段名']] = item['字段注释']
+            if (index === arr.length - 1) {
               obj[tableName] = {
                 tableName: chineseTableName,
                 fields
               }
             }
-            fields = {}
-            tableName = ''
-            chineseTableName = ''
-            tableName = item['表名及备注']
-            tableNumber = '表' + item['表序号'] + ':'
-          } else { // 同一个表
-            if (item['表名及备注']) {
-              chineseTableName = tableNumber + item['表名及备注']
-            }
-          }
-          fields[item['字段名']] = item['字段注释']
-          if (index === arr.length - 1) {
-            obj[tableName] = {
-              tableName: chineseTableName,
-              fields
-            }
-          }
-        })
+          })
+        }
+        if (this.rABS) {
+          reader.readAsArrayBuffer(f)
+        } else {
+          reader.readAsBinaryString(f)
+        }
+        this.deal()
+      } else if (this.getEnd(f.name) === '.txt') {
+        console.log('上传的shitxt文件')
+        this.fileName = f.name
+        // 使用 FileReader 来读取文件
+        const reader = new FileReader()
+        // 读取纯文本文件,且编码格式为 utf-8
+        reader.readAsText(f, 'UTF-8')
+        // 读取文件,会触发 onload 异步事件,可使用回调函数 来获取最终的值.
+        const this2 = this
+        reader.onload = function (e) {
+          const fileContent = e.target.result
+          this2.receiveTxtData(fileContent)
+        }
       }
-      if (this.rABS) {
-        reader.readAsArrayBuffer(f)
-      } else {
-        reader.readAsBinaryString(f)
+    },
+    receiveTxtData (val) {
+      // console.log('接收到的txt内容')
+      // console.log(val)
+      console.log('receiveTxtData----------------')
+      this.dealTxt(val)
+    },
+    receiveXLSX (val) {
+      this.deal(val)
+    },
+    dealTxt (val) {
+      const singleFile = {
+        sdate: 0, // 文件上传时间
+        fileName: '', // 文件名称
+        type: '0', // 存放excel第一行的所用值
+        content: [] // 存放excel每一列的值
       }
+      this.fileNum = this.$store.state.fileInfo.length
+      singleFile.sdate = this.getDate() // 设置上传时间
+      singleFile.fileName = this.fileName
+      singleFile.content[0] = val
+      this.keepFile(singleFile)
     },
     fixData (data) { // 文件流转BinaryString
       var o = ''
@@ -196,89 +248,89 @@ export default {
       o += String.fromCharCode.apply(null, new Uint8Array(data.slice(l * w)))
       return o
     },
-
-    deal () {
-      var singleFile = {
+    deal (content) {
+      const singleFile = {
         sdate: 0, // 文件上传时间
         fileName: '', // 文件名称
         type: [], // 存放excel第一行的所用值
         content: [] // 存放excel每一列的值
       }
       // console.log('进入deal（）函数')
-
-      console.log('this.$store.fileInfo.length')
-      this.fileNum = this.$store.state.fileInfo.length
-      console.log(this.fileNum)
-      // this.fileNum++
-      // console.log('fileNum = ' + this.fileNum)
-      var obj2 = JSON.parse(this.content) // 将json串转为json对象
-      // console.log('在deal中')
-      // console.log(obj2)
-      var keyNum = 0
-      for (var key in obj2[0]) {
-        if (key) {
-          keyNum++
-        }
-      }
-      /* 思路：第一行有几个数据，就建一个这么长的数组，每一个数组存储excel表中的一列数据 */
-      const keyValue = [] // 存放excel第一行的数据
-      var j = 0
-      for (const key in obj2[0]) {
-        // console.log('键：' + key); //json对象的key
-        keyValue[j] = key
-        // console.log(' keyValue ' + key + ': ' + keyValue[j])
-        j++
-      }
-      var dataValue = []
-      for (var k = 0; k < keyNum; k++) { // 一维长度为i,i为变量，可以根据实际情况改变
-        dataValue[k] = [] // 声明二维，每一个一维数组里面的一个元素都是一个数组
-      }
-
-      // 将excel表中同一列数据保存到一个数组中（有几列就有几个数组，这里excel最多十列，多出的不会存入数组），这里是通过当键名相同时将值放到相同的数组
-      for (let i = 0; i < obj2.length; i++) {
-        for (const key in obj2[i]) {
-          if (keyValue[0] === key) {
-            dataValue[0][i] = obj2[i][key]
-          } else if (key === keyValue[1]) {
-            dataValue[1][i] = obj2[i][key]
-          } else if (key === keyValue[2]) {
-            dataValue[2][i] = obj2[i][key]
-          } else if (key === keyValue[3]) {
-            dataValue[3][i] = obj2[i][key]
-          } else if (key === keyValue[4]) {
-            dataValue[4][i] = obj2[i][key]
-          } else if (key === keyValue[5]) {
-            dataValue[5][i] = obj2[i][key]
-          } else if (key === keyValue[6]) {
-            dataValue[6][i] = obj2[i][key]
-          } else if (key === keyValue[7]) {
-            dataValue[7][i] = obj2[i][key]
-          } else if (key === keyValue[8]) {
-            dataValue[8][i] = obj2[i][key]
-          } else if (key === keyValue[9]) {
-            dataValue[9][i] = obj2[i][key]
+      if (content !== null) {
+        console.log('this.$store.fileInfo.length')
+        this.fileNum = this.$store.state.fileInfo.length
+        console.log(this.fileNum)
+        // this.fileNum++
+        // console.log('fileNum = ' + this.fileNum)
+        var obj2 = JSON.parse(content) // 将json串转为json对象
+        // console.log('在deal中')
+        // console.log(obj2)
+        var keyNum = 0
+        for (var key in obj2[0]) {
+          if (key) {
+            keyNum++
           }
         }
-      }
-      singleFile.sdate = this.getDate() // 设置上传时间
-      // console.log('===========================')
-      for (let i = 0; i < keyValue.length; i++) { // 根据第一行有多少个值，将每一列存到一个数组中
-        singleFile.type[i] = keyValue[i]
-        singleFile.content[i] = dataValue[i]
-      }
+        /* 思路：第一行有几个数据，就建一个这么长的数组，每一个数组存储excel表中的一列数据 */
+        const keyValue = [] // 存放excel第一行的数据
+        var j = 0
+        for (const key in obj2[0]) {
+          // console.log('键：' + key); //json对象的key
+          keyValue[j] = key
+          // console.log(' keyValue ' + key + ': ' + keyValue[j])
+          j++
+        }
+        var dataValue = []
+        for (var k = 0; k < keyNum; k++) { // 一维长度为i,i为变量，可以根据实际情况改变
+          dataValue[k] = [] // 声明二维，每一个一维数组里面的一个元素都是一个数组
+        }
 
-      // console.log('singleFile内容')
-      // console.log(singleFile)
-      // console.log('fileNum = ' + this.fileNum)
+        // 将excel表中同一列数据保存到一个数组中（有几列就有几个数组，这里excel最多十列，多出的不会存入数组），这里是通过当键名相同时将值放到相同的数组
+        for (let i = 0; i < obj2.length; i++) {
+          for (const key in obj2[i]) {
+            if (keyValue[0] === key) {
+              dataValue[0][i] = obj2[i][key]
+            } else if (key === keyValue[1]) {
+              dataValue[1][i] = obj2[i][key]
+            } else if (key === keyValue[2]) {
+              dataValue[2][i] = obj2[i][key]
+            } else if (key === keyValue[3]) {
+              dataValue[3][i] = obj2[i][key]
+            } else if (key === keyValue[4]) {
+              dataValue[4][i] = obj2[i][key]
+            } else if (key === keyValue[5]) {
+              dataValue[5][i] = obj2[i][key]
+            } else if (key === keyValue[6]) {
+              dataValue[6][i] = obj2[i][key]
+            } else if (key === keyValue[7]) {
+              dataValue[7][i] = obj2[i][key]
+            } else if (key === keyValue[8]) {
+              dataValue[8][i] = obj2[i][key]
+            } else if (key === keyValue[9]) {
+              dataValue[9][i] = obj2[i][key]
+            }
+          }
+        }
+        singleFile.sdate = this.getDate() // 设置上传时间
+        // console.log('===========================')
+        for (let i = 0; i < keyValue.length; i++) { // 根据第一行有多少个值，将每一列存到一个数组中
+          singleFile.type[i] = keyValue[i]
+          singleFile.content[i] = dataValue[i]
+        }
 
-      singleFile.fileName = this.fileName
-      this.keepFile(singleFile)
+        // console.log('singleFile内容')
+        // console.log(singleFile)
+        // console.log('fileNum = ' + this.fileNum)
+
+        singleFile.fileName = this.fileName
+        this.keepFile(singleFile)
+      }
     },
 
     keepFile (val) {
       this.$store.state.fileInfo[this.fileNum] = val
-      // console.log('将singelFile存到store')
-      // console.log(this.$store.state.fileInfo[this.fileNum])
+      console.log('所有文件')
+      console.log(this.$store.state.fileInfo)
       this.$store.state.fileNum = this.fileNum++
     },
 

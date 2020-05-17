@@ -7,6 +7,10 @@ import 'element-ui/lib/theme-chalk/index.css'
 import XLSX from 'xlsx'
 
 import axios from 'axios'
+import echarts from 'echarts'
+import 'echarts-gl'
+
+Vue.prototype.$echarts = echarts
 Vue.prototype.$axios = axios
 Vue.use(XLSX)
 Vue.config.productionTip = false

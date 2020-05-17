@@ -28,13 +28,35 @@ export default {
   name: 'Home',
   components: {
     optionbox: OptionBox
+  },
+  watch: {
+    '$store.state.chartType': function (val) {
+      if (val === 'showhome') {
+        console.log('进入' + val)
+        this.$router.push('/showhome')
+      } else if (val === 'datamart') {
+        this.$router.push('/datamart')
+      } else if (val === 'histogram') {
+        this.$router.push('/optionhistogram')
+      } else if (val === 'line') {
+        this.$router.push('/optionline')
+      } else if (val === 'pie') {
+        this.$router.push('/optionpie')
+      } else if (val === 'scatterplot') {
+        this.$router.push('/optionscatterplot')
+      } else if (val === 'funnel') {
+        this.$router.push('/optionfunnel')
+      } else if (val === 'cubescatter') {
+        this.$router.push('/optioncubescatter')
+      }
+    }
   }
 }
 </script>
 
 <style lang="scss" scoped>
   .el-header, .el-footer {
-    background-color: #B3C0D1;
+    background-color: #5f6bd1;
     color: #333;
     text-align: center;
     line-height: 60px;
@@ -52,7 +74,7 @@ export default {
   }
 
   .el-main {
-    background-color: #34f37c;
+    background-color: #e6e3e3;
     color: #333;
     height: 650px;
   }
